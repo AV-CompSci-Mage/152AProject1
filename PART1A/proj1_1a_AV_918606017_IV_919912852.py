@@ -2,8 +2,11 @@ import dpkt
 import datetime
 import socket
 
-# insert pcap file path here
-pcap_path="PART1APCAP/tmz.pcap"
+# most of the code in this file is from the demo code the TA presented us:
+# source: https://github.com/klvijeth/ecs152a-fall-2024/blob/main/week1/code/dpkt_demo.py
+
+
+pcap_path="PART1APCAP/tmz.pcap" # change this everytime you want to change the file
 f = open(pcap_path, 'rb')
 print("Now reading pcap file: ", pcap_path)
 pcap = dpkt.pcap.Reader(f)
@@ -11,8 +14,6 @@ http_count = 0
 https_count = 0
 dns_count = 0
 ftp_count = 0
-ip_TCP = 0
-ip_UDP = 0
 
 for timestamp, data in pcap:
     ts=datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
@@ -32,7 +33,6 @@ for timestamp, data in pcap:
     # checks to see if TCP data is present (HTTP, HTTPS, FTP)
     if isinstance(ip.data, dpkt.tcp.TCP):
         tcp = ip.data
-    # # extract transport layer data
         if not len(tcp.data) > 0:
                 continue
 
