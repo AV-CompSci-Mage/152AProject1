@@ -1,67 +1,87 @@
 import dpkt
 import datetime
 import socket
-from dpkt.compat import compat_ord
 
-
-pcap_path="PART1APCAP/example.pcap"
+# insert pcap file path here
+pcap_path="PART1APCAP/tmz.pcap"
 f = open(pcap_path, 'rb')
 print("Now reading pcap file: ", pcap_path)
 pcap = dpkt.pcap.Reader(f)
-http_reqcount = 0
-http_rescount = 0
+http_count = 0
+https_count = 0
+dns_count = 0
+ftp_count = 0
+ip_TCP = 0
+ip_UDP = 0
+
 for timestamp, data in pcap:
     ts=datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
-    #print(ts, len(data))
     eth = dpkt.ethernet.Ethernet(data)
-    # # do not proceed if there is no network layer data
     if not isinstance(eth.data, dpkt.ip.IP) and not isinstance(eth.data, dpkt.ip6.IP6):
         continue
-    # # extract network layer data
-    ip = eth.data
     
+    ip = eth.data 
+    # this part of the code is used by demo code from the dpkt library: 
+    # https://dpkt.readthedocs.io/en/latest/_modules/examples/print_packets.html?highlight=socket.inet_ntop
     try:
-        ip_src = socket.inet_ntop(socket.AF_INET, ip.src)
         ip_dst = socket.inet_ntop(socket.AF_INET, ip.dst)
-        #print("Timestamp: ",ts, " IP dst: ", ip_dst)
+        print("Timestamp: ",ts, " IP dst: ", ip_dst)
     except ValueError:
         pass
-    
 
-    # # do not proceed if there is no transport layer data
-    if not isinstance(ip.data, dpkt.tcp.TCP):
-        continue
-
+    # checks to see if TCP data is present (HTTP, HTTPS, FTP)
+    if isinstance(ip.data, dpkt.tcp.TCP):
+        tcp = ip.data
     # # extract transport layer data
-    tcp = ip.data
+        if not len(tcp.data) > 0:
+                continue
 
-    # # do not proceed if there is no application layer data
-    # # here we check length because we don't know protocol yet
-
-    if not len(tcp.data) > 0:
-        continue
-
-    # # extract application layer data
-    # ## if destination port is 80, it is a http request
-    if tcp.dport == 80:
-        try:
-            http = dpkt.http.Request(tcp.data)
-            http_reqcount += 1
-            #print("Timestamp: ",ts, " IP dst: ", ip_dst)
-            #print(http.headers)
-            print(http.headers['user-agent'])
-        except:
-            pass
+        if tcp.dport == 80:
+            try:
+                http = dpkt.http.Request(tcp.data)
+                http_count += 1
+                #print("HTTP Request user-agent ",http.headers['user-agent'])
+            except:
+                pass
             
     ## if source port is 80, it is a http response
-    elif tcp.sport == 80:
-        try:
-            http = dpkt.http.Response(tcp.data)
-            http_rescount += 1
-            #print("Timestamp: ",ts, " IP src: ", ip_src)
-            #print(http.headers)
-            print(http.headers['user-agent'])
-        except:
-            pass
-#print("http_rescount: ", http_rescount)
-#print("http_reqcount: ", http_reqcount)
+        elif tcp.sport == 80:
+            try:
+                http = dpkt.http.Response(tcp.data)
+                http_count += 1
+                #print("HTTP Response user-agent ",http.headers['user-agent'])
+            except:
+                pass
+            
+    # ## if source or destination port is 443, it is a https packet
+        elif tcp.dport == 443 or tcp.sport == 443:
+            try:
+             ## HTTPS packets are encrypted so we cannot extract headers or user-agents
+             https_count += 1
+            except:
+                pass
+    # ## if source or destination port is 20, it is a ftp packet
+        elif tcp.dport == 21 or tcp.sport == 21:
+            try:
+             ## HTTPS packets are encrypted so we cannot extract headers or user-agents
+                ftp_count += 1
+            except:
+                pass
+# checking for UDP packets (DNS)
+    elif isinstance(ip.data, dpkt.udp.UDP):
+        udp = ip.data
+        if not len(udp.data) > 0:
+            continue
+
+        if udp.dport == 53 or udp.sport == 53:
+            try:
+                dns_count += 1
+            except:
+                pass
+    # if neither TCP nor UDP, ignore
+
+print("Analysis complete. Results:")
+print("ftp count: ", ftp_count)
+print("dns count: ", dns_count)
+print("http count: ", http_count)
+print("https count: ", https_count)
